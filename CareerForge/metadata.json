@@ -1,0 +1,6 @@
+{
+  "name": "CareerForge",
+  "description": "CareerForge is an AI-powered career preparation platform featuring ATS resume analysis, resume-job matching, interview simulation, learning roadmaps, and career insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
