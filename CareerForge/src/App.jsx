@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { api } from "./utils/api.js";
 import { Navbar } from "./components/Navbar.jsx";
 import { Dashboard } from "./components/Dashboard.jsx";
@@ -7,9 +7,15 @@ import { SessionSimulator } from "./components/SessionSimulator.jsx";
 import { ScorecardView } from "./components/ScorecardView.jsx";
 import { RoadmapView } from "./components/RoadmapView.jsx";
 import { SettingsPage } from "./pages/Settings.jsx";
-import { 
-  Lock, Mail, User as UserIcon, Terminal, Sparkles, 
-  ChevronRight, AlertCircle, Loader2
+import {
+  AlertCircle,
+  ChevronRight,
+  Loader2,
+  Lock,
+  Mail,
+  Sparkles,
+  Terminal,
+  User as UserIcon,
 } from "lucide-react";
 
 export default function App() {

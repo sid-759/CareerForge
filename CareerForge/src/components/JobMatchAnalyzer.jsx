@@ -1,10 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../utils/api.js";
-import { 
-  Briefcase, CheckCircle2, AlertCircle, Loader2, Sparkles, 
-  Award, ShieldAlert, Clock, Lightbulb, 
-  Calendar, Layers, Check, FileSearch, Upload
-} from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 export function JobMatchAnalyzer({ resumeText }) {
   const [jobDescription, setJobDescription] = useState("");
@@ -16,7 +12,6 @@ export function JobMatchAnalyzer({ resumeText }) {
   const [dragActive, setDragActive] = useState(false);
   const [activeTab, setActiveTab] = useState("7");
   const [historyList, setHistoryList] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
 
   const fileInputRef = useRef(null);
@@ -26,14 +21,11 @@ export function JobMatchAnalyzer({ resumeText }) {
   }, []);
 
   const loadHistory = async () => {
-    setLoadingHistory(true);
     try {
       const data = await api.getJobMatchHistory();
       setHistoryList(data);
     } catch (err) {
       console.error("Failed to load match history", err);
-    } finally {
-      setLoadingHistory(false);
     }
   };
 
@@ -132,15 +124,15 @@ export function JobMatchAnalyzer({ resumeText }) {
 
   // Score dynamic coloring rules
   const getScoreColor = (score) => {
-    if (score >= 90) return { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", progress: "#10B981" };
-    if (score >= 70) return { text: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20", progress: "#3B82F6" };
-    if (score >= 50) return { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20", progress: "#F59E0B" };
+    if (score >= 90) {return { text: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", progress: "#10B981" };}
+    if (score >= 70) {return { text: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20", progress: "#3B82F6" };}
+    if (score >= 50) {return { text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20", progress: "#F59E0B" };}
     return { text: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", progress: "#EF4444" };
   };
 
   const getProbabilityBadge = (scoreLabel) => {
-    if (scoreLabel === "High Chance") return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25";
-    if (scoreLabel === "Medium Chance") return "bg-blue-500/10 text-blue-400 border border-blue-500/25";
+    if (scoreLabel === "High Chance") {return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25";}
+    if (scoreLabel === "Medium Chance") {return "bg-blue-500/10 text-blue-400 border border-blue-500/25";}
     return "bg-red-500/10 text-red-400 border border-red-500/25";
   };
 
@@ -167,7 +159,7 @@ export function JobMatchAnalyzer({ resumeText }) {
             <select
               onChange={(e) => {
                 const found = historyList.find(h => h.id === e.target.value);
-                if (found) setSelectedAnalysis(found);
+                if (found) {setSelectedAnalysis(found);}
               }}
               value={selectedAnalysis?.id || ""}
               className="bg-[#050505] text-gray-300 border border-white/10 rounded-lg px-3 py-1 text-xs focus:border-violet-500 appearance-none cursor-pointer"

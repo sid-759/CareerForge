@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { api } from "../utils/api.js";
 import { 
   ArrowLeft, ArrowRight, HelpCircle, Hourglass, 
@@ -18,6 +18,9 @@ export function SessionSimulator({
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 Minutes Session Timer
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Guard against multiple auto-submit triggers when timer expires
+  const autoSubmitTriggeredRef = useRef(false);
 
   // Initialize empty answers map
   useEffect(() => {
@@ -28,20 +31,22 @@ export function SessionSimulator({
     setAnswers(initial);
   }, [questions]);
 
-  // Session clock countdown
+  // Session clock countdown - separate effect without timeLeft dependency to prevent reruns
   useEffect(() => {
-    if (timeLeft <= 0) {
-      // Auto-submit on expiration
-      handleAutoSubmit();
-      return;
-    }
-
     const interval = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
+      setTimeLeft((prev) => {
+        const newTime = prev - 1;
+        // Auto-submit exactly once when timer reaches zero
+        if (newTime <= 0 && !autoSubmitTriggeredRef.current) {
+          autoSubmitTriggeredRef.current = true;
+          handleSubmitSession();
+        }
+        return Math.max(newTime, 0);
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timeLeft]);
+  }, []);
 
   const activeQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
@@ -93,11 +98,13 @@ export function SessionSimulator({
     return questions.filter((q) => !answers[q.id]?.trim()).length;
   };
 
-  const handleAutoSubmit = () => {
-    handleSubmitSession();
-  };
-
   const handleSubmitSession = async () => {
+    // Prevent duplicate submissions if already submitting or if auto-submit was already triggered
+    if (submitting || autoSubmitTriggeredRef.current) {
+      return;
+    }
+    
+    autoSubmitTriggeredRef.current = true;
     setError(null);
     setSubmitting(true);
 
@@ -117,6 +124,8 @@ export function SessionSimulator({
       );
       onSessionSubmit(interviewResult);
     } catch (err) {
+      // If submission failed, allow retry by resetting the ref
+      autoSubmitTriggeredRef.current = false;
       setError(err?.message || "An error occurred while evaluating your session. Ensure connectivity with backend.");
     } finally {
       setSubmitting(false);

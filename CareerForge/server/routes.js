@@ -1,3 +1,5 @@
+import validator from "validator";
+import crypto from "crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -11,7 +13,6 @@ import {
   getInterviewsByUserId,
   getInterviewById,
   saveInterview,
-  updateInterview,
   updateUser,
   getJobMatchAnalysesByUserId,
   saveJobMatchAnalysis,
@@ -22,6 +23,7 @@ import {
   evaluateInterviewAnswers,
   generatePrepRoadmaps,
   compareResumeToJobDescription,
+  AIServiceError,
 } from "./geminiService.js";
 
 const router = Router();
@@ -30,6 +32,68 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB Limit
 });
 
+const ROLES = ["Frontend Developer", "Backend Developer", "Full Stack Developer", "Software Engineer", "Java Developer", "MERN Developer"];
+const COMPANIES = ["Amazon", "Google", "TCS", "Infosys", "Wipro", "Accenture", "Cognizant"];
+const DIFFICULTIES = ["Easy", "Medium", "Hard"];
+const LANGUAGES = ["English"];
+const FEEDBACK_MODES = ["Detailed", "Concise"];
+const TEXT_LIMIT = 120000;
+const ANSWER_LIMIT = 20000;
+
+function requiredString(value, field, maxLength = 200) {
+  if (typeof value !== "string" || !value.trim() || value.length > maxLength) {
+    const error = new Error(`${field} is invalid.`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return value.trim();
+}
+
+function optionalString(value, field, maxLength = 200) {
+  if (value === undefined || value === null || value === "") {return undefined;}
+  return requiredString(value, field, maxLength);
+}
+
+function validateQuestions(questions) {
+  if (
+    !Array.isArray(questions) || questions.length !== 5 || questions.some((question) =>
+      !question || typeof question.id !== "string" || typeof question.question !== "string" ||
+      !question.question.trim() || question.question.length > 2000 || typeof question.category !== "string" ||
+      !Array.isArray(question.expectedKeywords) || question.expectedKeywords.length === 0 ||
+      question.expectedKeywords.some((keyword) => typeof keyword !== "string" || keyword.length > 200)
+    ) || new Set(questions.map((question) => question.id)).size !== questions.length
+  ) {
+    const error = new Error("Interview questions are invalid.");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+function validateAnswers(answers, questions) {
+  if (
+    !Array.isArray(answers) || answers.length !== questions.length || answers.some((answer) =>
+      !answer || typeof answer.questionId !== "string" || typeof answer.userAnswer !== "string" ||
+      answer.userAnswer.length > ANSWER_LIMIT
+    )
+  ) {
+    const error = new Error("Interview answers are invalid.");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+function sendRouteError(res, err, fallbackMessage) {
+  if (err instanceof AIServiceError || err?.code === "AI_SERVICE_FAILURE") {
+    return res.status(503).json({ error: "AI service is temporarily unavailable. Please try again later." });
+  }
+  const status = Number.isInteger(err?.statusCode) ? err.statusCode : 500;
+  return res.status(status).json({ error: status < 500 ? err.message : fallbackMessage });
+}
+
+function hasPdfSignature(buffer) {
+  return Buffer.isBuffer(buffer) && buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+}
+
 // ==========================================
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================
@@ -37,15 +101,11 @@ const upload = multer({
 // POST /api/auth/register
 router.post("/auth/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: "Please provide all required fields." });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters long." });
-    }
+    const name = requiredString(req.body.name, "Name", 100);
+    const email = requiredString(req.body.email, "Email", 254).toLowerCase();
+    const password = requiredString(req.body.password, "Password", 128);
+    if (!validator.isEmail(email)) {return res.status(400).json({ error: "Please provide a valid email address." });}
+    if (password.length < 8) {return res.status(400).json({ error: "Password must be at least 8 characters long." });}
 
     const existingUser = findUserByEmail(email);
     if (existingUser) {
@@ -56,7 +116,7 @@ router.post("/auth/register", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const newUser = {
-      id: "u_" + Math.random().toString(36).substring(2, 11),
+      id: "u_" + crypto.randomUUID(),
       name,
       email,
       passwordHash,
@@ -101,11 +161,9 @@ router.post("/auth/register", async (req, res) => {
 // POST /api/auth/login
 router.post("/auth/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: "Please enter both email and password." });
-    }
+    const email = requiredString(req.body.email, "Email", 254).toLowerCase();
+    const password = requiredString(req.body.password, "Password", 128);
+    if (!validator.isEmail(email)) {return res.status(400).json({ error: "Please provide a valid email address." });}
 
     const user = findUserByEmail(email);
     if (!user) {
@@ -188,11 +246,12 @@ router.post(
   async (req, res) => {
     try {
       let resumeText = "";
-      const targetRole = (req.body.role || "Software Engineer").trim();
+      const targetRole = optionalString(req.body.role, "Role", 100) || "Software Engineer";
+      if (!ROLES.includes(targetRole)) {return res.status(400).json({ error: "Role selection is invalid." });}
 
       // Check if file is provided
       if (req.file) {
-        if (req.file.mimetype !== "application/pdf") {
+        if (req.file.mimetype !== "application/pdf" || !hasPdfSignature(req.file.buffer)) {
           return res.status(400).json({ error: "Only PDF resumes are accepted." });
         }
 
@@ -200,14 +259,19 @@ router.post(
           // Parse loaded buffer with the modern PDFParse class
           const parser = new PDFParse({ data: req.file.buffer });
           const parsedData = await parser.getText();
-          resumeText = parsedData.text || "";
+          resumeText = (parsedData.text || "").trim();
+          
+          // Limit extracted text to TEXT_LIMIT
+          if (resumeText.length > TEXT_LIMIT) {
+            resumeText = resumeText.substring(0, TEXT_LIMIT);
+          }
         } catch (pdfErr) {
-          console.error("PDF Parsing failed", pdfErr);
+          console.error("PDF Parsing failed", pdfErr?.message || pdfErr);
           return res.status(400).json({ error: "Unable to parse resume PDF. Please ensure it is not corrupt or copy and paste resume text." });
         }
       } else if (req.body.resumeText) {
         // Fallback or explicit pasted resume text
-        resumeText = req.body.resumeText.trim();
+        resumeText = requiredString(req.body.resumeText, "Resume text", TEXT_LIMIT);
       }
 
       if (!resumeText || resumeText.length < 50) {
@@ -224,8 +288,11 @@ router.post(
         analysis,
       });
     } catch (err) {
+      if (err instanceof AIServiceError || err?.code === "AI_SERVICE_FAILURE") {
+        return res.status(503).json({ error: "Resume analysis service is temporarily unavailable. Please try again later." });
+      }
       console.error("Resume Processing error", err);
-      return res.status(500).json({ error: "Internal error parsing resume." });
+      return sendRouteError(res, err, "Unable to process the resume.");
     }
   }
 );
@@ -233,13 +300,19 @@ router.post(
 // POST /api/interview/generate-questions (Protected)
 router.post("/interview/generate-questions", authMiddleware, async (req, res) => {
   try {
-    const { role, resumeText, companyName } = req.body;
-
-    if (!role || !resumeText) {
-      return res.status(400).json({ error: "Missing required role selection or parsed resume content." });
+    const role = requiredString(req.body.role, "Role", 100);
+    const resumeText = requiredString(req.body.resumeText, "Resume text", TEXT_LIMIT);
+    const companyName = optionalString(req.body.companyName, "Company name", 100);
+    if (!ROLES.includes(role) || (companyName && !COMPANIES.includes(companyName))) {
+      return res.status(400).json({ error: "Interview selection is invalid." });
     }
 
     const questions = await generateSessionQuestions(resumeText, role, companyName);
+    
+    // Validate that we got valid questions before returning
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return res.status(503).json({ error: "Unable to generate valid interview questions. Please try again." });
+    }
 
     return res.json({
       role,
@@ -248,7 +321,7 @@ router.post("/interview/generate-questions", authMiddleware, async (req, res) =>
     });
   } catch (err) {
     console.error("Generate questions error", err);
-    return res.status(500).json({ error: "Internal error creating questions." });
+    return sendRouteError(res, err, "Unable to create interview questions.");
   }
 });
 
@@ -256,16 +329,20 @@ router.post("/interview/generate-questions", authMiddleware, async (req, res) =>
 router.post("/interview/submit", authMiddleware, async (req, res) => {
   try {
     const { role, companyName, resumeText, questions, answers } = req.body;
-
-    if (!role || !questions || !answers || !resumeText) {
-      return res.status(400).json({ error: "Incomplete details for evaluation submission." });
+    const normalizedRole = requiredString(role, "Role", 100);
+    const normalizedResumeText = requiredString(resumeText, "Resume text", TEXT_LIMIT);
+    const normalizedCompanyName = optionalString(companyName, "Company name", 100);
+    if (!ROLES.includes(normalizedRole) || (normalizedCompanyName && !COMPANIES.includes(normalizedCompanyName))) {
+      return res.status(400).json({ error: "Interview selection is invalid." });
     }
+    validateQuestions(questions);
+    validateAnswers(answers, questions);
 
     // 1. Analyze and score the answers
-    const evaluation = await evaluateInterviewAnswers(role, questions, answers);
+    const evaluation = await evaluateInterviewAnswers(normalizedRole, questions, answers);
 
     // 2. Add extra ATS score tracking into evaluation from resume matching if desired
-    const combinedAtsAnalysis = await analyzeResume(resumeText, role);
+    const combinedAtsAnalysis = await analyzeResume(normalizedResumeText, normalizedRole);
     evaluation.atsReport = {
       score: combinedAtsAnalysis.atsScore || 70,
       missingKeywords: combinedAtsAnalysis.missingKeywords || [],
@@ -277,11 +354,11 @@ router.post("/interview/submit", authMiddleware, async (req, res) => {
 
     // 4. Save entire object to historical database
     const newInterview = {
-      id: "int_" + Math.random().toString(36).substring(2, 11),
+      id: "int_" + crypto.randomUUID(),
       userId: req.userId || "",
-      role,
-      companyName: companyName || undefined,
-      resumeText,
+      role: normalizedRole,
+      companyName: normalizedCompanyName,
+      resumeText: normalizedResumeText,
       generatedQuestions: questions,
       answers,
       evaluation,
@@ -294,7 +371,7 @@ router.post("/interview/submit", authMiddleware, async (req, res) => {
     return res.status(201).json(newInterview);
   } catch (err) {
     console.error("Submit evaluation error", err);
-    return res.status(500).json({ error: "Internal error evaluating answers." });
+    return sendRouteError(res, err, "Unable to evaluate the interview.");
   }
 });
 
@@ -383,23 +460,72 @@ router.put("/settings", authMiddleware, async (req, res) => {
 
     const updates = {};
 
-    if (name !== undefined) updates.name = name;
-    
-    if (email !== undefined && email.toLowerCase() !== user.email.toLowerCase()) {
-      const existingUser = findUserByEmail(email);
-      if (existingUser && existingUser.id !== user.id) {
-        return res.status(400).json({ error: "Email address is already in use by another account." });
+    // Validate and set name
+    if (name !== undefined) {
+      const validatedName = optionalString(name, "Name", 100);
+      if (validatedName) {
+        updates.name = validatedName;
+      } else if (typeof name === "string" && name.trim().length > 0) {
+        return res.status(400).json({ error: "Name is invalid or too long." });
       }
-      updates.email = email;
+    }
+    
+    // Validate and set email
+    if (email !== undefined && email.toLowerCase() !== user.email.toLowerCase()) {
+      const validatedEmail = optionalString(email, "Email", 254);
+      if (validatedEmail) {
+        if (!validator.isEmail(validatedEmail)) {
+          return res.status(400).json({ error: "Please provide a valid email address." });
+        }
+        const existingUser = findUserByEmail(validatedEmail);
+        if (existingUser && existingUser.id !== user.id) {
+          return res.status(400).json({ error: "Email address is already in use by another account." });
+        }
+        updates.email = validatedEmail;
+      }
     }
 
-    if (theme !== undefined) updates.theme = theme;
-    if (profileImage !== undefined) updates.profileImage = profileImage;
-    if (preferredRole !== undefined) updates.preferredRole = preferredRole;
-    if (preferredDifficulty !== undefined) updates.preferredDifficulty = preferredDifficulty;
-    if (preferredQuestionCount !== undefined) updates.preferredQuestionCount = Number(preferredQuestionCount);
-    if (preferredLanguage !== undefined) updates.preferredLanguage = preferredLanguage;
-    if (feedbackMode !== undefined) updates.feedbackMode = feedbackMode;
+    // Validate and set theme (must be "light" or "dark")
+    if (theme !== undefined && typeof theme === "string" && ["light", "dark"].includes(theme)) {
+      updates.theme = theme;
+    }
+
+    // Validate and set profileImage (optional string)
+    if (profileImage !== undefined && typeof profileImage === "string") {
+      if (profileImage.length <= 2000) {
+        updates.profileImage = profileImage;
+      }
+    }
+
+    // Validate and set preferredRole
+    if (preferredRole !== undefined && ROLES.includes(preferredRole)) {
+      updates.preferredRole = preferredRole;
+    }
+
+    // Validate and set preferredDifficulty
+    if (preferredDifficulty !== undefined && DIFFICULTIES.includes(preferredDifficulty)) {
+      updates.preferredDifficulty = preferredDifficulty;
+    }
+
+    // Validate and set preferredQuestionCount (1-10)
+    if (preferredQuestionCount !== undefined) {
+      const parsedCount = Number(preferredQuestionCount);
+      if (Number.isInteger(parsedCount) && parsedCount >= 1 && parsedCount <= 10) {
+        updates.preferredQuestionCount = parsedCount;
+      } else {
+        return res.status(400).json({ error: "Question count must be between 1 and 10." });
+      }
+    }
+
+    // Validate and set preferredLanguage
+    if (preferredLanguage !== undefined && LANGUAGES.includes(preferredLanguage)) {
+      updates.preferredLanguage = preferredLanguage;
+    }
+
+    // Validate and set feedbackMode
+    if (feedbackMode !== undefined && FEEDBACK_MODES.includes(feedbackMode)) {
+      updates.feedbackMode = feedbackMode;
+    }
 
     const updatedUser = updateUser(user.id, updates);
 
@@ -439,8 +565,8 @@ router.put("/settings/password", authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "Both current and new passwords are required." });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: "New password must be at least 6 characters long." });
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "New password must be at least 8 characters long." });
     }
 
     const user = findUserById(req.userId || "");
@@ -508,12 +634,21 @@ router.post("/jd-match/analyze", authMiddleware, async (req, res) => {
   try {
     const { resumeText, jobDescription } = req.body;
 
-    if (!resumeText || !resumeText.trim()) {
+    if (!resumeText || typeof resumeText !== "string" || !resumeText.trim()) {
       return res.status(400).json({ error: "Candidate resume text is required for comparison." });
     }
 
-    if (!jobDescription || !jobDescription.trim()) {
+    if (!jobDescription || typeof jobDescription !== "string" || !jobDescription.trim()) {
       return res.status(400).json({ error: "Job description is required for comparison." });
+    }
+
+    // Validate sizes
+    if (resumeText.length > TEXT_LIMIT) {
+      return res.status(400).json({ error: "Resume text is too long. Please provide a shorter resume." });
+    }
+
+    if (jobDescription.length > TEXT_LIMIT) {
+      return res.status(400).json({ error: "Job description is too long. Please provide a shorter job description." });
     }
 
     // Call Gemini API to match resume and Job Description text contents
@@ -542,8 +677,7 @@ router.post("/jd-match/analyze", authMiddleware, async (req, res) => {
 
     return res.status(201).json(newAnalysis);
   } catch (err) {
-    console.error("Error in POST /api/jd-match/analyze", err);
-    return res.status(500).json({ error: "An error occurred while analyzing compatibility." });
+    return sendRouteError(res, err, "An error occurred while analyzing compatibility.");
   }
 });
 
@@ -558,15 +692,25 @@ router.post("/jd-match/upload-jd", authMiddleware, upload.single("file"), async 
       return res.status(400).json({ error: "Only PDF format job descriptions are accepted." });
     }
 
-    const parser = new PDFParse({ data: req.file.buffer });
-    const parsedData = await parser.getText();
-    const extractedText = parsedData.text || "";
+    try {
+      const parser = new PDFParse({ data: req.file.buffer });
+      const parsedData = await parser.getText();
+      let extractedText = (parsedData.text || "").trim();
+      
+      // Limit extracted text
+      if (extractedText.length > TEXT_LIMIT) {
+        extractedText = extractedText.substring(0, TEXT_LIMIT);
+      }
 
-    if (!extractedText.trim()) {
+      if (!extractedText) {
+        return res.status(400).json({ error: "Unable to extract text from the PDF. Please copy and paste the Job Description text instead." });
+      }
+
+      return res.json({ text: extractedText });
+    } catch (pdfErr) {
+      console.error("PDF extraction failed:", pdfErr?.message || pdfErr);
       return res.status(400).json({ error: "Unable to extract text from the PDF. Please copy and paste the Job Description text instead." });
     }
-
-    return res.json({ text: extractedText });
   } catch (err) {
     console.error("Error in POST /api/jd-match/upload-jd", err);
     return res.status(500).json({ error: "Failed to extract text from Job Description PDF." });

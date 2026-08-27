@@ -158,7 +158,7 @@ export function RoadmapView({ interview, onNavigateToDashboard }) {
           
           <div className="space-y-4 relative border-l border-white/10 pl-4 ml-2">
             {activePlanList.map((item, idx) => {
-              const isChecked = !!checkedItems[`${activePlan}-${idx}`];
+              const isChecked = Boolean(checkedItems[`${activePlan}-${idx}`]);
               return (
                 <div 
                   key={idx}

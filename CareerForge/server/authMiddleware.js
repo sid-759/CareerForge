@@ -1,7 +1,13 @@
 import jwt from "jsonwebtoken";
 import { findUserById } from "./db.js";
 
-export const JWT_SECRET = process.env.JWT_SECRET || "interview-simulator-jwt-super-secret-key-2026";
+export const JWT_SECRET = process.env.JWT_SECRET;
+
+// JWT_SECRET validation happens at server startup in server.js
+// This is a defensive check in case it's ever null
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET must be configured. This check should have been caught at server startup.");
+}
 
 export function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -10,7 +16,7 @@ export function authMiddleware(req, res, next) {
     return res.status(401).json({ error: "Access denied. No authorization token provided." });
   }
 
-  const parts = authHeader.split(" ");
+  const parts = authHeader.trim().split(/\s+/);
   if (parts.length !== 2 || parts[0] !== "Bearer") {
     return res.status(401).json({ error: "Token format error. Must be Bearer <token>" });
   }
@@ -18,7 +24,10 @@ export function authMiddleware(req, res, next) {
   const token = parts[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
+    if (!decoded || typeof decoded !== "object" || typeof decoded.userId !== "string") {
+      return res.status(401).json({ error: "Invalid or expired session token." });
+    }
     const user = findUserById(decoded.userId);
     if (!user) {
       return res.status(401).json({ error: "Access denied. User no longer exists." });

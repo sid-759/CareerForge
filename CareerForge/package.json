@@ -8,7 +8,7 @@
     "build": "vite build && esbuild server.js --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
-    "lint": "echo 'Skipping tsc linting in javascript mode'"
+    "lint": "eslint . --ext .js,.jsx --ignore-pattern node_modules --ignore-pattern dist --max-warnings 0"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -24,6 +24,7 @@
     "pdf-parse": "^2.4.5",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "validator": "^13.15.35",
     "vite": "^6.2.3"
   },
   "devDependencies": {
@@ -34,6 +35,8 @@
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react": "^7.33.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",

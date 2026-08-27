@@ -13,7 +13,7 @@ export function ProfileSettings({ user, onUpdateUser, apiUpdate }) {
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {return;}
 
     if (!file.type.startsWith("image/")) {
       setErrorMsg("Please upload a valid image file.");

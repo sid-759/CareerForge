@@ -41,7 +41,7 @@ export const api = {
 
   async getMe() {
     const token = localStorage.getItem("ai_interview_token");
-    if (!token) return null;
+    if (!token) {return null;}
 
     const res = await fetch(`${API_BASE}/auth/me`, {
       method: "GET",

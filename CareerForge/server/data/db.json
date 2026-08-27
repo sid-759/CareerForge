@@ -1,5 +1,36 @@
 {
-  "users": [],
+  "users": [
+    {
+      "id": "u_5kv8d1ulf",
+      "name": "sid",
+      "email": "siddharth7503@gmail.com",
+      "passwordHash": "$2b$10$FVygKpAZS67yEZDuxVK9y.CYtoA2.K4ajjwVWrN1RXKKRP7qOa0Su",
+      "createdAt": "2026-07-01T04:40:27.898Z",
+      "theme": "dark",
+      "profileImage": "",
+      "preferredRole": "Software Engineer",
+      "preferredDifficulty": "Medium",
+      "preferredQuestionCount": 5,
+      "preferredLanguage": "English",
+      "feedbackMode": "Detailed",
+      "jwtVersion": 2
+    },
+    {
+      "id": "u_ee4hsi0au",
+      "name": "sailu",
+      "email": "prachi2005@gmail.com",
+      "passwordHash": "$2b$10$gUc4qFK.BEcY5U2EEMWprOzOVTDxYsLelymKXnKuT7iAh8QXOlHcW",
+      "createdAt": "2026-08-27T15:53:03.239Z",
+      "theme": "dark",
+      "profileImage": "",
+      "preferredRole": "Software Engineer",
+      "preferredDifficulty": "Medium",
+      "preferredQuestionCount": 5,
+      "preferredLanguage": "English",
+      "feedbackMode": "Detailed",
+      "jwtVersion": 1
+    }
+  ],
   "interviews": [],
   "jobMatchAnalyses": []
 }

@@ -32,6 +32,12 @@ function initializeDatabase() {
   }
 }
 
+function writeDatabaseAtomically(data) {
+  const temporaryFile = `${DB_FILE}.tmp`;
+  fs.writeFileSync(temporaryFile, JSON.stringify(data, null, 2), "utf-8");
+  fs.renameSync(temporaryFile, DB_FILE);
+}
+
 // Read database from disk
 export function readDb() {
   initializeDatabase();
@@ -55,7 +61,7 @@ export function writeDb(data) {
     if (!data.jobMatchAnalyses) {
       data.jobMatchAnalyses = [];
     }
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
+    writeDatabaseAtomically(data);
   } catch (err) {
     console.error("Error writing db file", err);
   }
