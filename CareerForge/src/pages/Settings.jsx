@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { api } from "../utils/api.js";
 import { ProfileSettings } from "../components/settings/ProfileSettings.jsx";
 import { AppearanceSettings } from "../components/settings/AppearanceSettings.jsx";

@@ -1,4 +1,4 @@
-import React from "react";
+ 
 import { 
   Clock, RotateCw, Plus, ArrowRight, BarChart2 
 } from "lucide-react";

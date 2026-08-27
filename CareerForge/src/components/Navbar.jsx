@@ -1,4 +1,4 @@
-import React from "react";
+ 
 import { LogOut, User as UserIcon, Terminal, Settings } from "lucide-react";
 
 export function Navbar({ user, activeView, onNavigate, onLogout }) {

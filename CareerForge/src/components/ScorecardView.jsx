@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { 
-  Award, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, 
+  Award, ChevronDown, CheckCircle2, AlertTriangle, 
   Compass, Copy, ShieldAlert,
   Flame, MessageSquareCode
 } from "lucide-react";

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Shield, Lock, Loader2, CheckCircle, AlertCircle, LogOut } from "lucide-react";
 
 export function SecuritySettings({ onLogout, apiChangePassword, apiLogoutAll }) {

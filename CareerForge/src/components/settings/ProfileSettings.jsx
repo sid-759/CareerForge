@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { User as UserIcon, Mail, Camera, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 export function ProfileSettings({ user, onUpdateUser, apiUpdate }) {

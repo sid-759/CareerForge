@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Sliders, Loader2, CheckCircle, AlertCircle, Sparkles } from "lucide-react";
 
 export function InterviewPreferences({ user, onUpdateUser, apiUpdate }) {

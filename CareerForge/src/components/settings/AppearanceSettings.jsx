@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Monitor, Moon, Sun, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 export function AppearanceSettings({ user, onUpdateUser, apiUpdate }) {

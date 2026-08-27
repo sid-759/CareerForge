@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { 
-  Calendar, CheckCircle2, Bookmark, Flame,
-  Compass, BookOpen, Clock, ArrowLeft
+  CheckCircle2, Bookmark, Flame,
+  Compass, BookOpen, ArrowLeft
 } from "lucide-react";
 
 export function RoadmapView({ interview, onNavigateToDashboard }) {

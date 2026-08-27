@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../utils/api.js";
 import { 
   ArrowLeft, ArrowRight, HelpCircle, Hourglass, 
-  CheckCircle2, AlertTriangle, Save, Loader2, Sparkles, AlertCircle
+  CheckCircle2, AlertTriangle, Loader2, Sparkles, AlertCircle
 } from "lucide-react";
 
 export function SessionSimulator({ 
