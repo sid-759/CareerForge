@@ -1,6 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../utils/api.js";
-import { AlertCircle, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  Briefcase,
+  Calendar,
+  Check,
+  CheckCircle2,
+  FileSearch,
+  Layers,
+  Lightbulb,
+  Loader2,
+  ShieldAlert,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 
 export function JobMatchAnalyzer({ resumeText }) {
   const [jobDescription, setJobDescription] = useState("");
